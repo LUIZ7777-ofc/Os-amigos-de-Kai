@@ -1,23 +1,23 @@
 import 'dotenv/config';
 import {
   ActionRowBuilder,
+  ActivityType,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
   Client,
   EmbedBuilder,
   GatewayIntentBits,
   ModalBuilder,
   REST,
   Routes,
-  SlashCommandBuilder,
   StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle,
   PermissionFlagsBits,
 } from 'discord.js';
 import { createBanner, getBannerFilename } from './banner.js';
+import { createCommands } from './commands.js';
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.CLIENT_ID;
@@ -32,6 +32,8 @@ const client = new Client({
 
 const drafts = new Map();
 const draftTTL = 30 * 60 * 1000;
+const statusInterval = 30_000;
+let currentStatusIndex = 0;
 
 function createDraft() {
   return {
@@ -170,31 +172,112 @@ function setDraft(interaction, updater) {
 }
 
 async function registerCommands() {
-  const command = new SlashCommandBuilder()
-    .setName('embed')
-    .setDescription('Abre o personalizador de embeds')
-    .setDMPermission(false)
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-    .addChannelOption((option) =>
-      option
-        .setName('canal')
-        .setDescription('Canal em que o embed sera publicado')
-        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-        .setRequired(false),
-    );
-
   const rest = new REST({ version: '10' }).setToken(token);
   await rest.put(Routes.applicationCommands(clientId), {
-    body: [command.toJSON()],
+    body: createCommands(),
   });
+}
+
+function updateBotStatus() {
+  const statuses = [
+    { name: '/embed para criar embeds', type: ActivityType.Playing },
+    { name: `${client.guilds.cache.size} servidores`, type: ActivityType.Watching },
+    { name: '/ajuda | /ping', type: ActivityType.Listening },
+  ];
+  const status = statuses[currentStatusIndex];
+
+  client.user.setPresence({
+    activities: [status],
+    status: 'online',
+  });
+  currentStatusIndex = (currentStatusIndex + 1) % statuses.length;
 }
 
 client.once('clientReady', () => {
   console.log(`Bot conectado como ${client.user.tag}`);
+  updateBotStatus();
+  setInterval(updateBotStatus, statusInterval);
 });
 
 client.on('interactionCreate', async (interaction) => {
   try {
+    if (interaction.isChatInputCommand() && interaction.commandName === 'ajuda') {
+      const helpEmbed = new EmbedBuilder()
+        .setColor(0x7c3aed)
+        .setTitle('Comandos do Zape cansado')
+        .setDescription('Comandos disponíveis neste servidor:')
+        .addFields(
+          { name: '/embed', value: 'Cria e personaliza um embed. Requer Gerenciar mensagens.' },
+          { name: '/ping', value: 'Mostra a latência do bot e da API do Discord.' },
+          { name: '/servidor', value: 'Mostra informações do servidor atual.' },
+          { name: '/usuario [membro]', value: 'Mostra informações suas ou de outro usuário.' },
+          { name: '/ajuda', value: 'Exibe esta lista de comandos.' },
+        )
+        .setFooter({ text: 'Zape cansado' });
+
+      await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === 'ping') {
+      const responseTime = Math.max(0, Date.now() - interaction.createdTimestamp);
+      await interaction.reply({
+        content: `🏓 Pong! Bot: **${responseTime} ms** · API do Discord: **${Math.round(client.ws.ping)} ms**`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === 'servidor') {
+      const guild = interaction.guild;
+      const serverEmbed = new EmbedBuilder()
+        .setColor(0x7c3aed)
+        .setTitle(guild.name)
+        .addFields(
+          { name: 'ID', value: guild.id, inline: true },
+          { name: 'Membros', value: String(guild.memberCount), inline: true },
+          { name: 'Dono', value: `<@${guild.ownerId}>`, inline: true },
+          {
+            name: 'Criado em',
+            value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:F>`,
+            inline: false,
+          },
+        )
+        .setFooter({ text: `Servidor ${guild.name}` })
+        .setTimestamp();
+
+      const guildIcon = guild.iconURL({ size: 256 });
+      if (guildIcon) serverEmbed.setThumbnail(guildIcon);
+
+      await interaction.reply({ embeds: [serverEmbed], ephemeral: true });
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === 'usuario') {
+      const user = interaction.options.getUser('membro') ?? interaction.user;
+      const userEmbed = new EmbedBuilder()
+        .setColor(0x7c3aed)
+        .setAuthor({
+          name: user.tag,
+          iconURL: user.displayAvatarURL({ size: 256 }),
+        })
+        .setTitle(`Informações de ${user.username}`)
+        .setThumbnail(user.displayAvatarURL({ size: 512 }))
+        .addFields(
+          { name: 'ID', value: user.id, inline: true },
+          { name: 'Conta de bot', value: user.bot ? 'Sim' : 'Não', inline: true },
+          {
+            name: 'Conta criada em',
+            value: `<t:${Math.floor(user.createdTimestamp / 1000)}:F>`,
+            inline: false,
+          },
+        )
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [userEmbed], ephemeral: true });
+      return;
+    }
+
     if (interaction.isChatInputCommand() && interaction.commandName === 'embed') {
       const entry = getDraft(interaction);
       entry.targetChannelId =

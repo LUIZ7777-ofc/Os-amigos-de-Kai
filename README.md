@@ -14,7 +14,7 @@ DISCORD_TOKEN=seu_token
 CLIENT_ID=id_da_aplicacao
 ```
 
-O comando `/embed` é registrado globalmente. Convide o bot para cada servidor onde ele será usado, usando os escopos `bot` e `applications.commands`. Comandos globais podem levar algum tempo para aparecer após o registro.
+Os comandos são registrados globalmente. Convide o bot para cada servidor onde ele será usado, usando os escopos `bot` e `applications.commands`. Comandos globais podem levar algum tempo para aparecer após o registro.
 
 ## Instale e execute
 
@@ -23,8 +23,15 @@ npm.cmd install
 npm.cmd start
 ```
 
-O bot registra `/embed` automaticamente ao iniciar.
+O bot registra os comandos automaticamente ao iniciar. Também é possível atualizá-los sem iniciar o bot usando `npm.cmd run deploy`. A presença do bot alterna a cada 30 segundos entre os comandos, a quantidade de servidores e dicas de uso.
 
 ## Uso
 
 Use `/embed` ou `/embed canal:#nome-do-canal`. Selecione um elemento no menu para editar seu titulo, descricao, cor, imagem, miniatura, autor, rodape ou o texto e emoji do botao. Use **Remover botão**/**Ativar botão** para controlar se ele aparece no embed publicado. Sem uma imagem externa, o bot gera um banner PNG exclusivo para o conteudo e a cor de cada embed, mantendo o estilo escuro com grade e detalhes amarelos. Use **Visualizar** para ver uma previa privada, **Publicar** para enviar o embed ou **Redefinir** para restaurar o modelo inicial.
+
+Comandos adicionais:
+
+- `/ajuda`: lista os comandos.
+- `/ping`: mostra as latencias do bot e da API.
+- `/servidor`: mostra informacoes do servidor atual.
+- `/usuario [membro]`: mostra informacoes suas ou de outro usuario.
